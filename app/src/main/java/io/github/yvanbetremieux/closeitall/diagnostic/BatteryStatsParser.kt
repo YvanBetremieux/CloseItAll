@@ -114,8 +114,9 @@ object BatteryStatsParser {
             val breakdown = m.groupValues[3].substringBefore('(')
             val parts = bgPart.findAll(breakdown).toList()
             val bg = if (parts.isEmpty()) null else parts.sumOf { it.groupValues[2].toDoubleOrNull() ?: 0.0 }
+            // A UID may be listed again in another section: keep the largest figure, never add.
             val old = uids[uid]
-            uids[uid] = UidStats(uid, mah = (old?.mah ?: 0.0) + mah, backgroundMah = bg?.plus(old?.backgroundMah ?: 0.0))
+            if (old == null || mah > old.mah) uids[uid] = UidStats(uid, mah = mah, backgroundMah = bg)
         }
         return BatteryReport(capacity, null, uids)
     }
