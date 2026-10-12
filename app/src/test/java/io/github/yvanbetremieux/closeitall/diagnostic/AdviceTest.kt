@@ -32,3 +32,12 @@ class AdviceTest {
         assertTrue(a.summary.startsWith("Rien d'anormal"))
     }
 }
+
+class AdviceBackgroundTest {
+    @Test fun backgroundShareIsExplained() {
+        val stats = UidStats(10150, mah = 505.0, backgroundMah = 405.0)
+        val a = Advice.forApp(stats, 10.0, restricted = false, backgroundLocation = false, isSystem = false)
+        assertTrue(a.summary, a.summary.startsWith("8 % de batterie consommés en arrière-plan"))
+        assertTrue(a.recommendRestrict)
+    }
+}

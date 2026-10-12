@@ -13,6 +13,7 @@ object Advice {
     private const val GPS_MS = 10 * 60_000L
     private const val BACKGROUND_MS = 60 * 60_000L
     private const val HEAVY_PERCENT = 2.0
+    private const val BG_PERCENT = 1.0
 
     fun forApp(
         stats: UidStats,
@@ -22,6 +23,8 @@ object Advice {
         isSystem: Boolean,
     ): AppAdvice {
         val reasons = mutableListOf<String>()
+        val bgPercent = stats.backgroundMah?.let { bg -> percent?.takeIf { stats.mah > 0 }?.times(bg / stats.mah) }
+        if (bgPercent != null && bgPercent >= BG_PERCENT) reasons += "%.0f %% de batterie consommés en arrière-plan".format(bgPercent)
         if (stats.wakelockMs >= WAKELOCK_MS) reasons += "garde le téléphone éveillé ${Format.duration(stats.wakelockMs)}"
         if (stats.alarmWakeups >= ALARMS) reasons += "${stats.alarmWakeups} réveils par alarme"
         if (stats.jobCount >= JOBS) reasons += "${stats.jobCount} tâches en arrière-plan"

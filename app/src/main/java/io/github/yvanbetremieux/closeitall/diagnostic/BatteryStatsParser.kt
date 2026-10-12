@@ -4,6 +4,8 @@ package io.github.yvanbetremieux.closeitall.diagnostic
 data class UidStats(
     val uid: Int,
     val mah: Double = 0.0,
+    /** Part of [mah] spent while the app was not on screen, when Android reports it. */
+    val backgroundMah: Double? = null,
     val wakelockMs: Long = 0,
     val wakelockCount: Int = 0,
     val jobCount: Int = 0,
@@ -90,6 +92,49 @@ object BatteryStatsParser {
             }
         }
         return BatteryReport(capacity, onBattery, uids)
+    }
+
+    private val uidLine = Regex("""^\s*UID (\S+): ([\d.]+)(.*)$""")
+    private val bgPart = Regex("""\b(bg|fgs|cached): ([\d.]+)""")
+    private val capacityLine = Regex("""^\s*Capacity: ([\d.]+)""")
+
+    /**
+     * Parses the "Estimated power use" section of the text `dumpsys batterystats`
+     * ("UID u0a150: 505 fg: 100 bg: 380 fgs: 25 cached: 0 ( cpu=… )").
+     * Background = bg + fgs + cached when the breakdown is present.
+     */
+    fun parseEstimatedPower(text: String): BatteryReport {
+        val uids = HashMap<Int, UidStats>()
+        var capacity: Double? = null
+        for (line in text.lineSequence()) {
+            capacityLine.find(line)?.let { capacity = it.groupValues[1].toDoubleOrNull() }
+            val m = uidLine.find(line) ?: continue
+            val uid = parseUid(m.groupValues[1]) ?: continue
+            val mah = m.groupValues[2].toDoubleOrNull() ?: continue
+            val breakdown = m.groupValues[3].substringBefore('(')
+            val parts = bgPart.findAll(breakdown).toList()
+            val bg = if (parts.isEmpty()) null else parts.sumOf { it.groupValues[2].toDoubleOrNull() ?: 0.0 }
+            val old = uids[uid]
+            uids[uid] = UidStats(uid, mah = (old?.mah ?: 0.0) + mah, backgroundMah = bg?.plus(old?.backgroundMah ?: 0.0))
+        }
+        return BatteryReport(capacity, null, uids)
+    }
+
+    /** "u0a150" → 10150, "u10a5" → 1010005, "1000" → 1000. */
+    fun parseUid(raw: String): Int? {
+        raw.toIntOrNull()?.let { return it }
+        val m = Regex("""^u(\d+)a(\d+)$""").find(raw) ?: return null
+        return m.groupValues[1].toInt() * 100_000 + 10_000 + m.groupValues[2].toInt()
+    }
+
+    /** Detailed checkin figures, with mAh taken from the text report when available. */
+    fun merge(checkin: BatteryReport, estimated: BatteryReport): BatteryReport {
+        val merged = HashMap(checkin.uids)
+        for ((uid, e) in estimated.uids) {
+            val c = merged[uid] ?: UidStats(uid)
+            merged[uid] = c.copy(mah = if (e.mah > 0) e.mah else c.mah, backgroundMah = e.backgroundMah ?: c.backgroundMah)
+        }
+        return BatteryReport(estimated.capacityMah ?: checkin.capacityMah, checkin.onBatteryMs, merged)
     }
 
     private fun List<String>.indexOf(value: String, startIndex: Int): Int {
