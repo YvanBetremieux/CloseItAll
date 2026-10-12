@@ -7,6 +7,11 @@ Optimiseur de batterie pour Android (pensé pour un Pixel 8 Pro, Android 14+, sa
   l'arrière-plan, **retirer la localisation en arrière-plan**, **forcer l'arrêt** (avec « Annuler »).
 - **Système** : vérifie et corrige les réglages qui gaspillent (recherche Bluetooth/Wi-Fi, écran
   toujours allumé, batterie adaptative, économiseur automatique, 120 Hz en suggestion).
+- **Fermeture des apps en arrière-plan** : toutes les N min (5 par défaut), force l'arrêt des apps
+  installées que tu n'as pas utilisées depuis N min. Jamais fermées : l'app à l'écran, le lanceur, le
+  clavier, la montre connectée, la musique et la navigation (service de premier plan), les réveils,
+  Shizuku, et une liste d'exceptions (messageries cochées par défaut). Une app fermée ne reçoit plus de
+  notification tant qu'on ne la rouvre pas.
 - **Automatismes** : coupe le Bluetooth quand aucun appareil n'est connecté depuis N min ; allume la
   localisation à l'ouverture d'une app GPS et la coupe N min après (sauf navigation en cours).
 
@@ -32,7 +37,8 @@ CloseItAll s'ouvre sur l'onglet **Réglages** tant que Shizuku n'est pas prêt.
    permission `WRITE_SECURE_SETTINGS`, puis ouvre Shizuku : activer **« Démarrer au démarrage »**
    dans ses réglages. Après un redémarrage (en Wi-Fi), Shizuku repart seul.
 4. Optionnel selon les automatismes :
-   - **Accès aux données d'utilisation** (règle localisation : savoir quelle app est à l'écran) ;
+   - **Accès aux données d'utilisation** (fermeture des apps : savoir lesquelles ont servi récemment —
+     sans lui, rien n'est fermé ; règle localisation : savoir quelle app est à l'écran) ;
    - **Appareils à proximité** (règle Bluetooth : compter les appareils connectés — sans elle, le
      Bluetooth n'est jamais coupé) ;
    - **Notifications** (état du service, alerte « Shizuku arrêté »).
@@ -101,6 +107,10 @@ entrée « CloseItAll release keystore »), copiée dans les secrets GitHub `CLO
 - [ ] Diagnostic : Facebook/TikTok/Snapchat apparaissent avec un % proche de l'écran Batterie du Pixel.
 - [ ] Restreindre une app → Paramètres → Applis → l'app → Batterie affiche « Restreinte » ; Annuler rétablit.
 - [ ] Système : « Recherche Bluetooth » → Corriger → vérifié dans Paramètres → Localisation → Services de localisation.
+- [ ] Fermeture des apps (délai 1 min) : ouvrir Facebook, revenir à l'accueil → après 1-2 min,
+      « Fermées : Facebook » dans le journal ; Paramètres → Applis → Facebook : « Forcer l'arrêt » grisé.
+- [ ] Musique Spotify en fond, WhatsApp (exception), clavier, lanceur → jamais fermés.
+- [ ] Rester 10 min sur une même app → jamais fermée.
 - [ ] Règle Bluetooth (délai 1 min), aucun appareil connecté → Bluetooth coupé, ligne dans le journal.
 - [ ] Écouteurs connectés → Bluetooth jamais coupé.
 - [ ] Règle localisation (délai 1 min) : ouvrir Maps → localisation allumée ; quitter → coupée après 1 min.

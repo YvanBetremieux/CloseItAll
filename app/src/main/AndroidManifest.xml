@@ -41,7 +41,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Battery automations: turns Bluetooth/location off when unused" />
+                android:value="Battery automations: closes idle background apps, turns Bluetooth/location off when unused" />
         </service>
 
         <receiver

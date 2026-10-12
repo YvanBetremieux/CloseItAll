@@ -2,6 +2,7 @@ package io.github.yvanbetremieux.closeitall.ui
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.yvanbetremieux.closeitall.CloseItAllApp
+import io.github.yvanbetremieux.closeitall.automation.ForegroundProbe
 import io.github.yvanbetremieux.closeitall.automation.RuleConfig
 import io.github.yvanbetremieux.closeitall.automation.WatchService
 import io.github.yvanbetremieux.closeitall.shell.ShizukuStatus
@@ -49,7 +51,7 @@ fun AutomationScreen(app: CloseItAllApp, status: ShizukuStatus, openSettings: ()
     val context = LocalContext.current
     val config by app.prefs.rules.collectAsStateWithLifecycle(initialValue = RuleConfig())
     val log by app.actionLog.entries.collectAsStateWithLifecycle()
-    var picking by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf<Picking?>(null) }
 
     fun update(change: (RuleConfig) -> RuleConfig) {
         scope.launch {
@@ -67,6 +69,42 @@ fun AutomationScreen(app: CloseItAllApp, status: ShizukuStatus, openSettings: ()
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+        }
+
+        RuleCard(
+            title = "Fermer les apps en arrière-plan",
+            subtitle = "Toutes les ${config.closeDelayMin} min, force l'arrêt des apps que tu n'as pas utilisées depuis ${config.closeDelayMin} min. " +
+                "Une app fermée ne reçoit plus de notification tant que tu ne la rouvres pas.",
+            checked = config.closeEnabled,
+            onChecked = { v -> update { it.copy(closeEnabled = v) } },
+            delay = config.closeDelayMin,
+            onDelay = { v -> update { it.copy(closeDelayMin = v) } },
+        ) {
+            if (!ForegroundProbe(context).hasAccess()) {
+                Text(
+                    "Autorise l'accès aux données d'utilisation : sans lui, CloseItAll ne sait pas quelles apps tu utilises et ne ferme rien.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = {
+                    runCatching { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }) { Text("Autoriser…") }
+            }
+            Text(
+                "Jamais fermées : l'app à l'écran, le lanceur, le clavier, la montre connectée, la musique, " +
+                    "la navigation, les réveils, Shizuku et les exceptions ci-dessous.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text("Exceptions", style = MaterialTheme.typography.titleSmall)
+            val installed = config.closeExceptions.filter { isInstalled(context.packageManager, it) }
+            if (installed.isEmpty()) Text("Aucune", style = MaterialTheme.typography.bodySmall)
+            installed.sortedBy { appLabel(context.packageManager, it).lowercase() }.forEach { pkg ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(appLabel(context.packageManager, pkg), modifier = Modifier.weight(1f))
+                    IconButton(onClick = { update { it.copy(closeExceptions = it.closeExceptions - pkg) } }) { Icon(Icons.Default.Close, "Retirer") }
+                }
+            }
+            TextButton(onClick = { picking = Picking.EXCEPTION }) { Text("Ajouter une exception…") }
         }
 
         RuleCard(
@@ -93,7 +131,7 @@ fun AutomationScreen(app: CloseItAllApp, status: ShizukuStatus, openSettings: ()
                     IconButton(onClick = { update { it.copy(gpsApps = it.gpsApps - pkg) } }) { Icon(Icons.Default.Close, "Retirer") }
                 }
             }
-            TextButton(onClick = { picking = true }) { Text("Ajouter une app…") }
+            TextButton(onClick = { picking = Picking.GPS }) { Text("Ajouter une app…") }
         }
 
         SectionTitle("Journal")
@@ -106,17 +144,20 @@ fun AutomationScreen(app: CloseItAllApp, status: ShizukuStatus, openSettings: ()
         Text(" ", modifier = Modifier.padding(16.dp))
     }
 
-    if (picking) {
+    picking?.let { kind ->
         AppPicker(
-            exclude = config.gpsApps,
-            onDismiss = { picking = false },
+            title = if (kind == Picking.GPS) "Choisir une app GPS" else "Ne jamais fermer…",
+            exclude = if (kind == Picking.GPS) config.gpsApps else config.closeExceptions,
+            onDismiss = { picking = null },
             onPick = { pkg ->
-                picking = false
-                update { it.copy(gpsApps = it.gpsApps + pkg) }
+                picking = null
+                update { if (kind == Picking.GPS) it.copy(gpsApps = it.gpsApps + pkg) else it.copy(closeExceptions = it.closeExceptions + pkg) }
             },
         )
     }
 }
+
+private enum class Picking { GPS, EXCEPTION }
 
 @Composable
 private fun RuleCard(
@@ -152,7 +193,7 @@ private fun RuleCard(
 }
 
 @Composable
-private fun AppPicker(exclude: Set<String>, onDismiss: () -> Unit, onPick: (String) -> Unit) {
+private fun AppPicker(title: String, exclude: Set<String>, onDismiss: () -> Unit, onPick: (String) -> Unit) {
     val pm = LocalContext.current.packageManager
     var query by remember { mutableStateOf("") }
     val apps = remember {
@@ -164,7 +205,7 @@ private fun AppPicker(exclude: Set<String>, onDismiss: () -> Unit, onPick: (Stri
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("Fermer") } },
-        title = { Text("Choisir une app GPS") },
+        title = { Text(title) },
         text = {
             Column {
                 OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("Rechercher") }, singleLine = true)
@@ -181,3 +222,6 @@ private fun AppPicker(exclude: Set<String>, onDismiss: () -> Unit, onPick: (Stri
 
 private fun appLabel(pm: PackageManager, pkg: String): String =
     runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+
+private fun isInstalled(pm: PackageManager, pkg: String): Boolean =
+    runCatching { pm.getApplicationInfo(pkg, 0) }.isSuccess

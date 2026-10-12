@@ -9,8 +9,11 @@ data class RuleConfig(
     val locEnabled: Boolean = false,
     val locDelayMin: Int = 10,
     val gpsApps: Set<String> = DEFAULT_GPS_APPS,
+    val closeEnabled: Boolean = false,
+    val closeDelayMin: Int = 5,
+    val closeExceptions: Set<String> = DEFAULT_CLOSE_EXCEPTIONS,
 ) {
-    val anyRule: Boolean get() = enabled && (btEnabled || locEnabled)
+    val anyRule: Boolean get() = enabled && (btEnabled || locEnabled || closeEnabled)
 }
 
 data class RuleState(

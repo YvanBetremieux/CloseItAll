@@ -50,12 +50,20 @@ class WatchService : LifecycleService() {
     private var state = RuleState()
     private var pollJob: Job? = null
     private var alarmSet = false
+    private var sweepSet = false
+    private var sweepJob: Job? = null
+    private var warnedNoUsageAccess = false
+    private lateinit var closer: BackgroundCloser
     private lateinit var bluetooth: BluetoothTracker
     private lateinit var foreground: ForegroundProbe
     private val handler = Handler(Looper.getMainLooper())
     private val alarm = AlarmManager.OnAlarmListener {
         alarmSet = false
         events.trySend(Event.Tick)
+    }
+    private val sweepAlarm = AlarmManager.OnAlarmListener {
+        sweepSet = false
+        runSweep()
     }
 
     private val receiver = object : BroadcastReceiver() {
@@ -87,6 +95,7 @@ class WatchService : LifecycleService() {
         startInForeground(paused = false)
         bluetooth = BluetoothTracker(this) { count -> events.trySend(Event.BluetoothDevices(count ?: UNKNOWN_DEVICES)) }
         foreground = ForegroundProbe(this)
+        closer = BackgroundCloser(this, app.shell, foreground)
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
@@ -131,6 +140,7 @@ class WatchService : LifecycleService() {
     override fun onDestroy() {
         runCatching { unregisterReceiver(receiver) }
         cancelAlarm()
+        cancelSweep()
         events.close()
         super.onDestroy()
     }
@@ -142,6 +152,48 @@ class WatchService : LifecycleService() {
         for (command in commands) execute(command)
         scheduleTick(now)
         updatePolling()
+        updateSweep()
+    }
+
+    /** One inexact alarm per cycle while the "close apps" rule is on and Shizuku is ready. */
+    private fun updateSweep() {
+        val wanted = config.enabled && config.closeEnabled && state.shizuku
+        if (!wanted) {
+            cancelSweep()
+        } else if (!sweepSet && sweepJob?.isActive != true) {
+            val at = SystemClock.elapsedRealtime() + config.closeDelayMin * MINUTE
+            getSystemService(AlarmManager::class.java)
+                .set(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, "CloseItAll:close", sweepAlarm, handler)
+            sweepSet = true
+        }
+    }
+
+    private fun cancelSweep() {
+        if (sweepSet) getSystemService(AlarmManager::class.java).cancel(sweepAlarm)
+        sweepSet = false
+    }
+
+    private fun runSweep() {
+        sweepJob = lifecycleScope.launch {
+            if (config.enabled && config.closeEnabled && state.shizuku) {
+                when (val result = runCatching { closer.sweep(config) }.getOrElse { SweepResult.ShellUnavailable }) {
+                    SweepResult.NoUsageAccess -> if (!warnedNoUsageAccess) {
+                        warnedNoUsageAccess = true
+                        app.actionLog.add("Fermeture des apps en pause : autorise l'accès aux données d'utilisation")
+                    }
+                    SweepResult.ShellUnavailable -> Unit
+                    is SweepResult.Closed -> {
+                        warnedNoUsageAccess = false
+                        if (result.packages.isNotEmpty()) {
+                            val names = result.packages.joinToString(", ") { closer.label(it) }
+                            app.actionLog.add(if (result.failed) "Échec partiel de la fermeture : $names" else "Fermées : $names")
+                        }
+                    }
+                }
+            }
+            sweepJob = null
+            updateSweep()
+        }
     }
 
     private suspend fun execute(command: Command) {
@@ -231,7 +283,7 @@ class WatchService : LifecycleService() {
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(if (paused) "Automatismes en pause" else "Automatismes actifs")
-            .setContentText(if (paused) "Shizuku est arrêté : appuie pour le relancer" else "Bluetooth et localisation surveillés")
+            .setContentText(if (paused) "Shizuku est arrêté : appuie pour le relancer" else "Batterie surveillée")
             .setContentIntent(pending)
             .setOngoing(true)
             .setSilent(true)

@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.yvanbetremieux.closeitall.automation.DEFAULT_CLOSE_EXCEPTIONS
 import io.github.yvanbetremieux.closeitall.automation.DEFAULT_GPS_APPS
 import io.github.yvanbetremieux.closeitall.automation.RuleConfig
 import kotlinx.coroutines.flow.Flow
@@ -27,6 +28,9 @@ class Prefs(private val context: Context) {
         val locEnabled = booleanPreferencesKey("loc_enabled")
         val locDelay = intPreferencesKey("loc_delay_min")
         val gpsApps = stringSetPreferencesKey("gps_apps")
+        val closeEnabled = booleanPreferencesKey("close_enabled")
+        val closeDelay = intPreferencesKey("close_delay_min")
+        val closeExceptions = stringSetPreferencesKey("close_exceptions")
         val autoCheck = booleanPreferencesKey("update_auto_check")
         val autoInstall = booleanPreferencesKey("update_auto_install")
         val lastCheck = longPreferencesKey("update_last_check")
@@ -50,6 +54,9 @@ class Prefs(private val context: Context) {
             p[K.locEnabled] = c.locEnabled
             p[K.locDelay] = c.locDelayMin.coerceIn(1, 120)
             p[K.gpsApps] = c.gpsApps
+            p[K.closeEnabled] = c.closeEnabled
+            p[K.closeDelay] = c.closeDelayMin.coerceIn(1, 120)
+            p[K.closeExceptions] = c.closeExceptions
         }
     }
 
@@ -69,5 +76,8 @@ class Prefs(private val context: Context) {
         locEnabled = p[K.locEnabled] ?: false,
         locDelayMin = p[K.locDelay] ?: 10,
         gpsApps = p[K.gpsApps] ?: DEFAULT_GPS_APPS,
+        closeEnabled = p[K.closeEnabled] ?: false,
+        closeDelayMin = p[K.closeDelay] ?: 5,
+        closeExceptions = p[K.closeExceptions] ?: DEFAULT_CLOSE_EXCEPTIONS,
     )
 }

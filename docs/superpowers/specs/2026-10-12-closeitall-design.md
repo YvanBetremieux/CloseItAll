@@ -14,9 +14,13 @@ arrière-plan. Il veut une app **qui optimise la batterie** sans elle-même cons
 4. automatiser : couper le Bluetooth quand rien n'est connecté, couper la localisation quand
    aucune app GPS n'est utilisée.
 
-Hors périmètre (décidé) : fermeture automatique périodique de toutes les apps. Sur Android 14,
-`killBackgroundProcesses` ne vise plus que l'app appelante, et tuer les apps en cache coûte plus
-de batterie au redémarrage qu'il n'en économise.
+Ajout v0.2.0 (demandé par Yvan) : fermeture automatique des apps en arrière-plan. Toutes les N min
+(défaut 5), `am force-stop` via Shizuku sur chaque app utilisateur en cours d'exécution qui n'a pas
+été à l'écran depuis N min (UsageStats). Protégées : activité affichée (`dumpsys activity
+activities`), apps avec service de premier plan, lanceur, clavier, accessibilité, écouteurs de
+notifications (montre), téléphone/SMS par défaut, fond d'écran animé, administrateurs, apps
+déclarant `USE_EXACT_ALARM` (réveils), Shizuku, CloseItAll, exceptions (messageries par défaut).
+Sans accès aux données d'utilisation, rien n'est fermé.
 
 Succès : Yvan installe l'APK depuis GitHub Releases, voit le classement des apps, restreint
 Facebook/TikTok/Snapchat en un tap et active les deux automatismes ; l'app consomme < 0,5 %/jour.

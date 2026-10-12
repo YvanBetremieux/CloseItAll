@@ -142,7 +142,7 @@ fun SettingsScreen(app: CloseItAllApp, status: ShizukuStatus) {
             PermissionRow(
                 title = "Accès aux données d'utilisation",
                 required = false,
-                purpose = "Savoir quelle app est à l'écran, pour la règle localisation.",
+                purpose = "Savoir quelles apps tu as utilisées récemment, pour fermer les autres et pour la règle localisation.",
                 granted = ForegroundProbe(context).hasAccess(),
                 action = "Autoriser…" to { open(context, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) },
             )
