@@ -73,7 +73,10 @@ fun SettingsScreen(app: CloseItAllApp, status: ShizukuStatus) {
             tick++
         }
     }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { tick++ }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        tick++
+        scope.launch { WatchService.sync(context) }
+    }
 
     Column(Modifier.verticalScroll(rememberScrollState())) {
         Text("Réglages", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
@@ -94,7 +97,8 @@ fun SettingsScreen(app: CloseItAllApp, status: ShizukuStatus) {
         }
 
         SectionTitle("Autorisations")
-        key(tick) {
+        @Suppress("UNUSED_VARIABLE") val refresh = tick
+        run {
             PermissionRow(
                 title = "Shizuku",
                 required = true,
@@ -197,9 +201,6 @@ fun SettingsScreen(app: CloseItAllApp, status: ShizukuStatus) {
         }
     }
 }
-
-@Composable
-private fun key(tick: Int, content: @Composable () -> Unit) = androidx.compose.runtime.key(tick) { content() }
 
 @Composable
 private fun PermissionRow(

@@ -28,6 +28,7 @@ import androidx.lifecycle.lifecycleScope
 import io.github.yvanbetremieux.closeitall.CloseItAllApp
 import io.github.yvanbetremieux.closeitall.MainActivity
 import io.github.yvanbetremieux.closeitall.R
+import io.github.yvanbetremieux.closeitall.shell.ShellResult
 import io.github.yvanbetremieux.closeitall.shell.ShizukuState
 import io.github.yvanbetremieux.closeitall.shell.ShizukuStatus
 import kotlinx.coroutines.Job
@@ -123,6 +124,7 @@ class WatchService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         app.shizuku.refresh()
+        if (::bluetooth.isInitialized && bluetooth.isEnabled) bluetooth.seed()
         return START_STICKY
     }
 
@@ -145,9 +147,17 @@ class WatchService : LifecycleService() {
     private suspend fun execute(command: Command) {
         val shell = app.shell
         when (command) {
-            Command.DisableBluetooth -> report("Bluetooth", shell.run("cmd bluetooth_manager disable 2>/dev/null || svc bluetooth disable"))
-            Command.EnableLocation -> report("Localisation", shell.run("cmd location set-location-enabled true 2>/dev/null || settings put secure location_mode 3"))
-            Command.DisableLocation -> report("Localisation", shell.run("cmd location set-location-enabled false 2>/dev/null || settings put secure location_mode 0"))
+            Command.DisableBluetooth ->
+                if (!report("Bluetooth", shell.run("cmd bluetooth_manager disable 2>/dev/null || svc bluetooth disable"))) {
+                    events.trySend(Event.BluetoothPower(bluetooth.isEnabled))
+                }
+            Command.EnableLocation, Command.DisableLocation -> {
+                val on = command == Command.EnableLocation
+                val mode = if (on) 3 else 0
+                if (!report("Localisation", shell.run("cmd location set-location-enabled $on 2>/dev/null || settings put secure location_mode $mode"))) {
+                    events.trySend(Event.LocationPower(locationEnabled()))
+                }
+            }
             is Command.CheckGpsService -> {
                 val packages = command.packages.filter { it.matches(PACKAGE) }
                 val script = packages.joinToString("; ") { "dumpsys activity services $it | grep -q 'isForeground=true' && echo $it" } + "; true"
@@ -159,8 +169,10 @@ class WatchService : LifecycleService() {
         }
     }
 
-    private fun report(what: String, result: io.github.yvanbetremieux.closeitall.shell.ShellResult) {
+    /** Logs a failed command; returns whether it succeeded. */
+    private fun report(what: String, result: ShellResult): Boolean {
         if (!result.ok) app.actionLog.add("Échec ($what) : ${result.err.ifBlank { result.out }.take(120)}")
+        return result.ok
     }
 
     private fun scheduleTick(now: Long) {
@@ -230,6 +242,7 @@ class WatchService : LifecycleService() {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
         } catch (e: Exception) {
             Log.w("CloseItAll", "startForeground failed", e)
+            app.actionLog.add("Service arrêté par Android : rouvre CloseItAll pour relancer les automatismes")
             stopSelf()
         }
     }

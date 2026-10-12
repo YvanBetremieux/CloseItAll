@@ -63,8 +63,15 @@ fun SystemScreen(app: CloseItAllApp, status: ShizukuStatus, snackbar: SnackbarHo
 
     LaunchedEffect(status) { if (status == ShizukuStatus.READY) reload() }
 
-    if (status != ShizukuStatus.READY || failed) {
+    if (status != ShizukuStatus.READY) {
         ShizukuRequiredCard(openSettings)
+        return
+    }
+    if (failed) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Lecture des réglages impossible pour l'instant.")
+            Button(onClick = ::reload) { Text("Réessayer") }
+        }
         return
     }
     val list = checks ?: run {

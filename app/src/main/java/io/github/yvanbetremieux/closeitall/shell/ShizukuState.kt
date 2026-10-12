@@ -44,12 +44,14 @@ class ShizukuState(private val context: Context) {
         false
     }
 
-    private fun compute(): ShizukuStatus = when {
-        !Shizuku.pingBinder() -> if (isInstalled()) ShizukuStatus.NOT_RUNNING else ShizukuStatus.NOT_INSTALLED
-        Shizuku.isPreV11() -> ShizukuStatus.NO_PERMISSION
-        Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED -> ShizukuStatus.NO_PERMISSION
-        else -> ShizukuStatus.READY
-    }
+    private fun compute(): ShizukuStatus = runCatching {
+        when {
+            !Shizuku.pingBinder() -> if (isInstalled()) ShizukuStatus.NOT_RUNNING else ShizukuStatus.NOT_INSTALLED
+            Shizuku.isPreV11() -> ShizukuStatus.NO_PERMISSION
+            Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED -> ShizukuStatus.NO_PERMISSION
+            else -> ShizukuStatus.READY
+        }
+    }.getOrDefault(ShizukuStatus.NOT_RUNNING)
 
     companion object {
         const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
